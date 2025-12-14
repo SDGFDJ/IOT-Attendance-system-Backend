@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from "cloudinary";
+import streamifier from "streamifier";
 
 // ✅ Cloudinary Config
 cloudinary.config({
@@ -7,27 +8,36 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET || "",
 });
 
-// Debugging: check if env variables are loading
+// Debug log
 if (!process.env.CLOUDINARY_CLOUD_NAME) {
-  console.error("❌ Cloudinary config missing! Check your .env file.");
+  console.error("❌ Cloudinary config missing! Check env variables");
 } else {
   console.log("✅ Cloudinary connected:", process.env.CLOUDINARY_CLOUD_NAME);
 }
 
-// ✅ Upload Function
-const uploadImageCloudinary = async (file) => {
-  const filePath = file?.path;
-  if (!filePath) throw new Error("File path missing");
+// ✅ VERCEL SAFE UPLOAD FUNCTION
+const uploadImageCloudinary = (file) => {
+  return new Promise((resolve, reject) => {
+    if (!file?.buffer) {
+      return reject(new Error("File buffer missing"));
+    }
 
-  const result = await cloudinary.uploader.upload(filePath, {
-    folder: "student_profiles",
-    resource_type: "auto",
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: "student_profiles",
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve({
+          url: result.secure_url,
+          public_id: result.public_id,
+        });
+      }
+    );
+
+    streamifier.createReadStream(file.buffer).pipe(uploadStream);
   });
-
-  return {
-    url: result.secure_url,
-    public_id: result.public_id
-  };
 };
 
 export default uploadImageCloudinary;

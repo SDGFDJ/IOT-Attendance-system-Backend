@@ -1,31 +1,21 @@
-import uploadImageClodinary from "../utils/uploadImageClodinary.js";
+import cloudinary from "../config/cloudinary.js";
+import streamifier from "streamifier";
 
-const uploadImageController = async (req, res) => {
-  try {
-    const file = req.file;
-    if (!file) {
-      return res.status(400).json({
-        message: "No file uploaded",
-        error: true,
-        success: false,
-      });
-    }
+const uploadImageClodinary = (file) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "iot-attendance",
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
 
-    const uploadImage = await uploadImageClodinary(file);
-
-    return res.json({
-      message: "Upload done",
-      data: uploadImage,
-      success: true,
-      error: false,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: error.message || error,
-      error: true,
-      success: false,
-    });
-  }
+    streamifier.createReadStream(file.buffer).pipe(stream);
+  });
 };
 
-export default uploadImageController;
+export default uploadImageClodinary;
