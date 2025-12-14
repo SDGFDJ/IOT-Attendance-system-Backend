@@ -1,17 +1,15 @@
 import jwt from "jsonwebtoken";
 
-const generatedAccessToken = async (userId) => {
-    console.log("🔑 Inside AccessToken util, JWT_SECRET:", process.env.JWT_SECRET);  // Debug line
+const generatedAccessToken = (userId) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is missing in env");
+  }
 
-    if (!process.env.JWT_SECRET) {
-        throw new Error("JWT_SECRET is missing in env");
-    }
-
-    return jwt.sign(
-        { _id: userId },
-        process.env.JWT_SECRET,
-        { expiresIn: "1d" }
-    );
+  return jwt.sign(
+    { userId },                 // ✅ SAME KEY EVERYWHERE
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" }         // short expiry (best practice)
+  );
 };
 
 export default generatedAccessToken;

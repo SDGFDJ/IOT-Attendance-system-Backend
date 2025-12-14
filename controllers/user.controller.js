@@ -295,13 +295,6 @@ export async function loginController(req, res) {
       });
     }
 
-    if (user.status !== "Active") {
-      return res.status(403).json({
-        success: false,
-        message: "Account blocked",
-      });
-    }
-
     const isMatch = await bcryptjs.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({
@@ -310,12 +303,7 @@ export async function loginController(req, res) {
       });
     }
 
-    // 🔑 IMPORTANT: payload key = userId
-    const accessToken = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "15m" }
-    );
+    const accessToken = generatedAccessToken(user._id);
 
     const refreshToken = jwt.sign(
       { userId: user._id },
@@ -323,20 +311,16 @@ export async function loginController(req, res) {
       { expiresIn: "7d" }
     );
 
-    res.cookie("accessToken", accessToken, {
+    const cookieOptions = {
       httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-    });
+      secure: true,     // ✅ MUST on Vercel
+      sameSite: "none", // ✅ cross-site
+    };
 
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-    });
+    res.cookie("accessToken", accessToken, cookieOptions);
+    res.cookie("refreshToken", refreshToken, cookieOptions);
 
-    const userData = await UserModel.findById(user._id)
-      .select("-password -refresh_token");
+    const userData = await UserModel.findById(user._id).select("-password");
 
     return res.json({
       success: true,
@@ -345,15 +329,12 @@ export async function loginController(req, res) {
     });
 
   } catch (error) {
-    console.error("Login Error:", error);
     return res.status(500).json({
       success: false,
       message: "Login failed",
     });
   }
 }
-
-
 
 
 //logout controller
@@ -624,7 +605,7 @@ export async function refreshToken(req, res) {
       req.cookies?.refreshToken ||
       req.headers?.authorization?.split(" ")[1];
 
-    if (!refreshToken || typeof refreshToken !== "string") {
+    if (!refreshToken) {
       return res.status(401).json({
         success: false,
         message: "Refresh token missing",
@@ -636,14 +617,15 @@ export async function refreshToken(req, res) {
       process.env.SECRET_KEY_REFRESH_TOKEN
     );
 
-    const userId = decoded.id;
+    // ✅ CORRECT KEY
+    const userId = decoded.userId;
 
     const newAccessToken = generatedAccessToken(userId);
 
     res.cookie("accessToken", newAccessToken, {
       httpOnly: true,
-      secure: false,
-      sameSite: "lax",
+      secure: true,
+      sameSite: "none",
     });
 
     return res.json({
@@ -652,7 +634,6 @@ export async function refreshToken(req, res) {
     });
 
   } catch (error) {
-    console.log("🔥 Refresh Token Error:", error.message);
     return res.status(401).json({
       success: false,
       message: "Invalid refresh token",
@@ -662,7 +643,6 @@ export async function refreshToken(req, res) {
 
 export async function userDetails(req, res) {
   try {
-    // 🔥 ab ye undefined nahi hoga
     const userId = req.userId;
 
     if (!userId) {
@@ -689,7 +669,6 @@ export async function userDetails(req, res) {
     });
 
   } catch (error) {
-    console.error("UserDetails Error:", error);
     return res.status(500).json({
       success: false,
       message: "Something went wrong",
