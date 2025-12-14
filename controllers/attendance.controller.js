@@ -6,47 +6,68 @@ export async function markAttendance(req, res) {
   try {
     const { studentId, lecture } = req.body;
 
-    if (!lecture) {
-      return res.status(400).json({ success: false, message: "Lecture missing" });
+    console.log("📌 QR STUDENT ID:", studentId);
+
+    if (!studentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Student ID missing",
+      });
     }
+
 
     const student = await UserModel.findOne({ studentId });
-
     if (!student) {
-      return res.status(404).json({ success: false, message: "Student Not Found" });
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
     }
 
+    // 🔥 lecture optional (default auto)
+const finalLecture = lecture ? Number(lecture) : 1;
+
     const today = new Date();
-    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const date = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
 
-    const exist = await AttendanceModel.findOne({ studentId, date, lecture });
+    const alreadyMarked = await AttendanceModel.findOne({
+      studentId,
+      date,
+      lecture: finalLecture,
+    });
 
-    if (exist) {
+    if (alreadyMarked) {
       return res.json({
         success: true,
-        message: "Already Marked",
-        data: exist
+        message: "Already marked",
+        data: alreadyMarked,
       });
     }
 
     const record = await AttendanceModel.create({
       studentId,
       date,
-      lecture,
-      status: "Present"
+      lecture: finalLecture,
+      status: "Present",
     });
 
-    res.json({
+    return res.json({
       success: true,
-      message: "Attendance Marked",
+      message: "Attendance marked successfully",
       data: record,
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 }
-
 
 // 📌 Monthly Attendance Data for Calendar
 export async function getMonthlyAttendance(req, res) {
