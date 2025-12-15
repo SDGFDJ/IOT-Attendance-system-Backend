@@ -9,6 +9,15 @@ import { verifyESP32 } from "../middleware/esp32Auth.js";
 
 const router = express.Router();
 
+
+router.post("/device/test", (req, res) => {
+  res.json({
+    success: true,
+    message: "ESP32 POST working",
+    body: req.body
+  });
+});
+
 /* =====================================================
    🟢 ESP32 / RFID DEVICE ATTENDANCE
 ===================================================== */

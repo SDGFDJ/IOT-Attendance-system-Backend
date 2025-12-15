@@ -1,5 +1,7 @@
 export function verifyESP32(req, res, next) {
-  const apiKey = req.headers["x-api-key"];
+  const apiKey =
+    req.headers["x-api-key"] ||
+    req.headers["X-API-KEY"];
 
   if (!apiKey) {
     return res.status(401).json({
