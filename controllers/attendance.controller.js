@@ -1,95 +1,67 @@
 import AttendanceModel from "../models/attendance.model.js";
 import UserModel from "../models/user.model.js";
-// ⏰ Lecture Time Table
+
+/* ⏰ Lecture slots */
 const LECTURE_SLOTS = [
   { no: 1, start: "12:00", end: "12:40" },
   { no: 2, start: "12:40", end: "13:20" },
   { no: 3, start: "13:20", end: "14:00" },
   { no: 4, start: "14:00", end: "14:40" },
-  // Recess 14:40–15:00
   { no: 5, start: "15:00", end: "15:40" },
-  { no: 6, start: "15:40", end: "16:20" },
+  { no: 6, start: "15:40", end: "19:20" },
 ];
 
-// 📘 Day wise subjects
 const DAY_SUBJECTS = {
-  Monday:    ["Physics", "Math", "Chemistry", "English", "EVS", "P.E."],
-  Tuesday:  ["Math", "Physics", "Hindi", "Chemistry", "Geography", "English"],
-  Wednesday:["Chemistry", "Math", "Physics", "Hindi", "EVS", "P.E."],
-  Thursday: ["Physics", "English", "Math", "Chemistry", "Geography", "Hindi"],
-  Friday:   ["Math", "Science", "English", "Hindi", "EVS", "P.E."],
-  Saturday: ["Physics", "Math", "Chemistry", "English", "Revision", "P.E."],
+  Monday: ["Physics","Math","Chemistry","English","EVS","Math"],
+  Tuesday: ["Math","Physics","Hindi","Chemistry","Geography","English"],
+  Wednesday:["Chemistry","Math","Physics","Hindi","EVS","P.E."],
+  Thursday:["Physics","English","Math","Chemistry","Geography","Hindi"],
+  Friday:["Math","Science","English","Hindi","EVS","P.E."],
+  Saturday:["Physics","Math","Chemistry","English","Revision","P.E."],
 };
 
-
-// 📌 QR Scan & Mark Attendance
 export async function markAttendance(req, res) {
   try {
     const { studentId } = req.body;
-
-    if (!studentId) {
-      return res.status(400).json({
-        success: false,
-        message: "Student ID missing",
-      });
-    }
+    if (!studentId)
+      return res.status(400).json({ success:false, message:"Student ID missing" });
 
     const student = await UserModel.findOne({ studentId });
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student not found",
-      });
-    }
+    if (!student)
+      return res.status(404).json({ success:false, message:"Student not found" });
 
     const now = new Date();
     const minutesNow = now.getHours() * 60 + now.getMinutes();
 
-    // ⛔ Recess block (2:40 – 3:00)
-    if (minutesNow >= 14 * 60 + 40 && minutesNow < 15 * 60) {
-      return res.json({
-        success: false,
-        message: "Recess time – attendance not allowed",
-      });
+    /* ❌ Recess block */
+    if (minutesNow >= 14*60+40 && minutesNow < 15*60) {
+      return res.json({ success:false, message:"Recess time" });
     }
 
-    // 🎯 Find current lecture
     const lectureSlot = LECTURE_SLOTS.find(slot => {
       const [sh, sm] = slot.start.split(":").map(Number);
       const [eh, em] = slot.end.split(":").map(Number);
-      return minutesNow >= sh * 60 + sm && minutesNow < eh * 60 + em;
+      return minutesNow >= sh*60+sm && minutesNow < eh*60+em;
     });
 
-    if (!lectureSlot) {
-      return res.json({
-        success: false,
-        message: "Not in lecture time",
-      });
-    }
+    if (!lectureSlot)
+      return res.json({ success:false, message:"Not lecture time" });
 
-    const dayName = now.toLocaleDateString("en-US", { weekday: "long" });
-    const subject =
-      DAY_SUBJECTS[dayName]?.[lectureSlot.no - 1] || "Unknown";
+    /* ✅ SAFE DATE (FIX) */
+    const date = new Date();
+    date.setHours(0,0,0,0);
 
-    const date = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-
-    const alreadyMarked = await AttendanceModel.findOne({
+    const already = await AttendanceModel.findOne({
       studentId,
       date,
       lectureNo: lectureSlot.no,
     });
 
-    if (alreadyMarked) {
-      return res.json({
-        success: true,
-        message: "Already marked",
-        data: alreadyMarked,
-      });
-    }
+    if (already)
+      return res.json({ success:true, message:"Already marked" });
+
+    const dayName = now.toLocaleDateString("en-US",{ weekday:"long" });
+    const subject = DAY_SUBJECTS[dayName]?.[lectureSlot.no-1] || "Unknown";
 
     const record = await AttendanceModel.create({
       studentId,
@@ -101,19 +73,13 @@ export async function markAttendance(req, res) {
       status: "Present",
     });
 
-    return res.json({
-      success: true,
-      message: "Attendance marked successfully",
-      data: record,
-    });
+    res.json({ success:true, message:"Attendance marked", data:record });
 
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (err) {
+    res.status(500).json({ success:false, message:err.message });
   }
 }
+
 
 // 📌 Monthly Attendance Data for Calendar
 export async function getMonthlyAttendance(req, res) {
