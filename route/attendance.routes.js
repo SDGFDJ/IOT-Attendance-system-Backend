@@ -5,30 +5,36 @@ import {
   getDayAttendance
 } from "../controllers/attendance.controller.js";
 import auth from "../middleware/auth.js";
+import { verifyESP32 } from "../middleware/esp32Auth.js";
 
 const router = express.Router();
 
-/**
- * 📌 QR SCAN
- * 🔓 No auth (ESP32 / Scanner device)
- * Body: { studentId, lecture? }
- */
-router.post("/scan", markAttendance);
+/* =====================================================
+   🟢 ESP32 / RFID DEVICE ATTENDANCE
+===================================================== */
+router.post(
+  "/device/scan",
+  verifyESP32,      // 🔐 only ESP32 allowed
+  markAttendance
+);
 
-/**
- * 📅 Monthly attendance (Calendar)
- * 🔐 Auth required
- * Params: :id = studentId (STU2392)
- * Query: month, year
- */
+/* =====================================================
+   🟢 WEB / QR SCANNER (optional)
+===================================================== */
+router.post(
+  "/scan",
+  auth,             // 🔐 logged-in user only
+  markAttendance
+);
+
+/* =====================================================
+   📅 MONTHLY ATTENDANCE (CALENDAR)
+===================================================== */
 router.get("/by-month/:id", auth, getMonthlyAttendance);
 
-/**
- * 📆 Day-wise lecture attendance
- * 🔐 Auth required
- * Params: :id = studentId (STU2392)
- * Query: day, month, year
- */
+/* =====================================================
+   📆 DAY WISE ATTENDANCE
+===================================================== */
 router.get("/by-day/:id", auth, getDayAttendance);
 
 export default router;
