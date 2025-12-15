@@ -9,13 +9,13 @@ const attendanceSchema = new mongoose.Schema(
       index: true,
     },
 
-    // 📅 Attendance Date (only date part used)
+    // 📅 Attendance Date (ONLY date, no time)
     date: {
       type: Date,
       required: true,
     },
 
-    // 🔢 Lecture Number (1 – 6)
+    // 🔢 Lecture Number (1–6)
     lectureNo: {
       type: Number,
       required: true,
@@ -23,10 +23,10 @@ const attendanceSchema = new mongoose.Schema(
       max: 6,
     },
 
-    // 📘 Subject Name
+    // 📘 Subject (OPTIONAL – backend can auto-fill)
     subject: {
       type: String,
-      required: true,
+      default: "Unknown",
       enum: [
         "Physics",
         "Chemistry",
@@ -42,14 +42,14 @@ const attendanceSchema = new mongoose.Schema(
       ],
     },
 
-    // ⏰ Lecture Timing
+    // ⏰ Lecture Timing (OPTIONAL for ESP32)
     startTime: {
-      type: String, // "12:00"
-      required: true,
+      type: String,
+      default: "",
     },
     endTime: {
-      type: String, // "12:40"
-      required: true,
+      type: String,
+      default: "",
     },
 
     // ✅ Attendance Status
@@ -59,18 +59,24 @@ const attendanceSchema = new mongoose.Schema(
       default: "Present",
     },
 
-    // ⏱️ Exact scan time
-    timestamp: {
+    // 🖥️ Device info (ESP32 / WEB)
+    deviceId: {
+      type: String,
+      default: "WEB",
+    },
+
+    // ⏱️ Scan time
+    scannedAt: {
       type: Date,
       default: Date.now,
     },
   },
   {
-    timestamps: true, // createdAt, updatedAt
+    timestamps: true,
   }
 );
 
-// 🚫 Prevent duplicate attendance for same lecture same day
+// 🚫 UNIQUE attendance per lecture per day
 attendanceSchema.index(
   { studentId: 1, date: 1, lectureNo: 1 },
   { unique: true }
