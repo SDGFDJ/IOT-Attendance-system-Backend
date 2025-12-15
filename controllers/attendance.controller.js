@@ -106,22 +106,25 @@ export async function getMonthlyAttendance(req, res) {
 // 📌 Day Wise Lecture Attendance
 export async function getDayAttendance(req, res) {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // id = STU2392
     const { day, month, year } = req.query;
 
     const dateStart = new Date(year, month - 1, day, 0, 0, 0);
     const dateEnd = new Date(year, month - 1, day, 23, 59, 59);
 
     const records = await AttendanceModel.find({
-      studentId: id,
-      date: { $gte: dateStart, $lte: dateEnd }
+      studentId: id,   // ✅ CORRECT
+      date: { $gte: dateStart, $lte: dateEnd },
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: records,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 }
