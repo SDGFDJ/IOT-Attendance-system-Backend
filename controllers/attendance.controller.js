@@ -1,14 +1,14 @@
 import AttendanceModel from "../models/attendance.model.js";
 import UserModel from "../models/user.model.js";
 
-/* ⏰ Lecture slots */
+/* ⏰ Lecture slots (FIXED) */
 const LECTURE_SLOTS = [
-  { no: 1, start: "12:00", end: "10:40" },
+  { no: 1, start: "10:00", end: "10:40" },
   { no: 2, start: "11:25", end: "12:20" },
   { no: 3, start: "13:20", end: "14:00" },
   { no: 4, start: "14:00", end: "14:40" },
   { no: 5, start: "15:00", end: "15:40" },
-  { no: 6, start: "15:40", end: "19:20" },
+  { no: 6, start: "15:40", end: "16:20" },
 ];
 
 const DAY_SUBJECTS = {
@@ -19,6 +19,19 @@ const DAY_SUBJECTS = {
   Friday:["Math","Science","English","Hindi","EVS","P.E."],
   Saturday:["Physics","Math","Chemistry","English","Revision","P.E."],
 };
+
+/* 🌍 IST helper */
+function getISTNow() {
+  return new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+}
+
+function getISTDateOnly() {
+  const ist = getISTNow();
+  ist.setHours(0, 0, 0, 0);
+  return ist;
+}
 
 export async function markAttendance(req, res) {
   try {
@@ -39,10 +52,11 @@ export async function markAttendance(req, res) {
       });
     }
 
-    const now = new Date();
+    /* 🕒 IST TIME */
+    const now = getISTNow();
     const minutesNow = now.getHours() * 60 + now.getMinutes();
 
-    /* ⛔ Recess */
+    /* ⛔ Recess (IST) */
     if (minutesNow >= 14 * 60 + 40 && minutesNow < 15 * 60) {
       return res.json({
         success: false,
@@ -50,11 +64,13 @@ export async function markAttendance(req, res) {
       });
     }
 
-    /* 🎯 Find lecture */
+    /* 🎯 Find lecture slot */
     const lectureSlot = LECTURE_SLOTS.find(slot => {
       const [sh, sm] = slot.start.split(":").map(Number);
       const [eh, em] = slot.end.split(":").map(Number);
-      return minutesNow >= sh * 60 + sm && minutesNow < eh * 60 + em;
+      const startMin = sh * 60 + sm;
+      const endMin = eh * 60 + em;
+      return minutesNow >= startMin && minutesNow < endMin;
     });
 
     if (!lectureSlot) {
@@ -64,9 +80,8 @@ export async function markAttendance(req, res) {
       });
     }
 
-    /* ✅ SAFE DATE */
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
+    /* 📅 IST DATE ONLY */
+    const date = getISTDateOnly();
 
     /* 🔒 Duplicate protection */
     const already = await AttendanceModel.findOne({
@@ -83,7 +98,12 @@ export async function markAttendance(req, res) {
       });
     }
 
-    const dayName = now.toLocaleDateString("en-US", { weekday: "long" });
+    /* 📘 Subject by IST day */
+    const dayName = now.toLocaleDateString("en-US", {
+      weekday: "long",
+      timeZone: "Asia/Kolkata",
+    });
+
     const subject =
       DAY_SUBJECTS[dayName]?.[lectureSlot.no - 1] || "Unknown";
 
@@ -96,6 +116,7 @@ export async function markAttendance(req, res) {
       endTime: lectureSlot.end,
       status: "Present",
       deviceId: deviceId || "WEB",
+      scannedAt: now, // IST timestamp
     });
 
     return res.json({
@@ -105,7 +126,6 @@ export async function markAttendance(req, res) {
     });
 
   } catch (error) {
-    // 🔥 Duplicate key safety
     if (error.code === 11000) {
       return res.json({
         success: true,
@@ -120,7 +140,7 @@ export async function markAttendance(req, res) {
   }
 }
 
-// 📌 Monthly Attendance Data for Calendar
+/* 📌 Monthly Attendance */
 export async function getMonthlyAttendance(req, res) {
   try {
     const { id } = req.params;
@@ -145,15 +165,11 @@ export async function getMonthlyAttendance(req, res) {
   }
 }
 
-
-// 📌 Day Wise Lecture Attendance
+/* 📌 Day-wise Attendance */
 export async function getDayAttendance(req, res) {
   try {
     const { id } = req.params;
-
-    const day = Number(req.query.day);
-    const month = Number(req.query.month);
-    const year = Number(req.query.year);
+    const { day, month, year } = req.query;
 
     const dateStart = new Date(year, month - 1, day, 0, 0, 0);
     const dateEnd = new Date(year, month - 1, day, 23, 59, 59);
@@ -163,15 +179,8 @@ export async function getDayAttendance(req, res) {
       date: { $gte: dateStart, $lte: dateEnd },
     }).sort({ lectureNo: 1 });
 
-    res.json({
-      success: true,
-      data: records,
-    });
+    res.json({ success: true, data: records });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 }
-
