@@ -1,111 +1,91 @@
 import AttendanceModel from "../models/attendance.model.js";
 import UserModel from "../models/user.model.js";
 
-/* ⏰ Lecture slots (FIXED) */
-const LECTURE_SLOTS = [
-  { no: 1, start: "10:00", end: "10:40" },
-  { no: 2, start: "11:25", end: "12:20" },
-  { no: 3, start: "13:20", end: "14:00" },
-  { no: 4, start: "14:00", end: "14:40" },
-  { no: 5, start: "15:00", end: "15:40" },
-  { no: 6, start: "15:40", end: "16:20" },
-];
-
-const DAY_SUBJECTS = {
-  Monday: ["Physics","Math","Chemistry","English","EVS","Math"],
-  Tuesday: ["Math","Physics","Hindi","Chemistry","Geography","English"],
-  Wednesday:["Chemistry","Math","Physics","Hindi","EVS","P.E."],
-  Thursday:["Physics","English","Math","Chemistry","Geography","Hindi"],
-  Friday:["Math","Science","English","Hindi","EVS","P.E."],
-  Saturday:["Physics","Math","Chemistry","English","Revision","P.E."],
-};
-
-/* 🌍 IST helper */
+/* ================= TIME HELPERS (IST) ================= */
 function getISTNow() {
   return new Date(
     new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
   );
 }
-
 function getISTDateOnly() {
-  const ist = getISTNow();
-  ist.setHours(0, 0, 0, 0);
-  return ist;
+  const d = getISTNow();
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
+
+/* ================= LECTURE SLOTS ================= */
+const LECTURE_SLOTS = [
+  { no: 1, start: "12:00", end: "12:40" },
+  { no: 2, start: "12:40", end: "13:20" },
+  { no: 3, start: "13:20", end: "14:00" },
+  { no: 4, start: "14:00", end: "14:40" },
+  { no: 5, start: "15:00", end: "15:40" },
+  { no: 6, start: "15:40", end: "16:20" },
+  { no: 7, start: "16:20", end: "17:00" },
+];
+
+/* ================= D DIVISION SUBJECTS ================= */
+const DAY_SUBJECTS = {
+  Monday:    ["P.E.", "Marathi/Hindi", "Maths/Geo", "Biology", "Chemistry", "English", null],
+  Tuesday:   ["Marathi/Hindi", "Marathi/Hindi", "Maths/Geo", "Biology", "Chemistry", "English", null],
+  Wednesday: ["Maths/Geo", "Marathi/Hindi", "Maths/Geo", "Biology", "Physics", "English", "P.E."],
+  Thursday:  ["Maths/Geo", "Marathi/Hindi", "Maths/Geo", "Biology", "Physics", "English", null],
+  Friday:    ["E.V.S.", "Marathi/Hindi", "Maths/Geo", "Chemistry", "Physics", "English", null],
+  Saturday:  ["English", "Marathi/Hindi", "Maths/Geo", "Chemistry", "Physics", "E.V.S.", "ENG(T)"],
+};
 
 export async function markAttendance(req, res) {
   try {
     const { studentId, deviceId } = req.body;
-
     if (!studentId) {
-      return res.status(400).json({
-        success: false,
-        message: "Student ID missing",
-      });
+      return res.status(400).json({ success: false, message: "Student ID missing" });
     }
 
     const student = await UserModel.findOne({ studentId });
     if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student not found",
-      });
+      return res.status(404).json({ success: false, message: "Student not found" });
     }
 
-    /* 🕒 IST TIME */
     const now = getISTNow();
     const minutesNow = now.getHours() * 60 + now.getMinutes();
 
-    /* ⛔ Recess (IST) */
-    if (minutesNow >= 14 * 60 + 40 && minutesNow < 15 * 60) {
-      return res.json({
-        success: false,
-        message: "Recess time – attendance not allowed",
-      });
+    // ⛔ Recess
+    if (minutesNow >= (14 * 60 + 40) && minutesNow < (15 * 60)) {
+      return res.json({ success: false, message: "Recess time – attendance not allowed" });
     }
 
-    /* 🎯 Find lecture slot */
-    const lectureSlot = LECTURE_SLOTS.find(slot => {
-      const [sh, sm] = slot.start.split(":").map(Number);
-      const [eh, em] = slot.end.split(":").map(Number);
-      const startMin = sh * 60 + sm;
-      const endMin = eh * 60 + em;
-      return minutesNow >= startMin && minutesNow < endMin;
+    // 🎯 Find lecture slot
+    const lectureSlot = LECTURE_SLOTS.find(s => {
+      const [sh, sm] = s.start.split(":").map(Number);
+      const [eh, em] = s.end.split(":").map(Number);
+      return minutesNow >= (sh * 60 + sm) && minutesNow < (eh * 60 + em);
     });
 
     if (!lectureSlot) {
-      return res.json({
-        success: false,
-        message: "Not in lecture time",
-      });
+      return res.json({ success: false, message: "Not in lecture time" });
     }
 
-    /* 📅 IST DATE ONLY */
-    const date = getISTDateOnly();
-
-    /* 🔒 Duplicate protection */
-    const already = await AttendanceModel.findOne({
-      studentId,
-      date,
-      lectureNo: lectureSlot.no,
-    });
-
-    if (already) {
-      return res.json({
-        success: true,
-        message: "Attendance already marked",
-        data: already,
-      });
-    }
-
-    /* 📘 Subject by IST day */
     const dayName = now.toLocaleDateString("en-US", {
       weekday: "long",
       timeZone: "Asia/Kolkata",
     });
 
-    const subject =
-      DAY_SUBJECTS[dayName]?.[lectureSlot.no - 1] || "Unknown";
+    const subject = DAY_SUBJECTS[dayName]?.[lectureSlot.no - 1];
+    if (!subject) {
+      return res.json({ success: false, message: "No lecture scheduled now" });
+    }
+
+    const date = getISTDateOnly();
+
+    // 🔒 Duplicate protection
+    const already = await AttendanceModel.findOne({
+      studentId,
+      date,
+      lectureNo: lectureSlot.no,
+    });
+    if (already) {
+      return res.json({ success: true, message: "Attendance already marked", data: already });
+    }
 
     const record = await AttendanceModel.create({
       studentId,
@@ -116,7 +96,7 @@ export async function markAttendance(req, res) {
       endTime: lectureSlot.end,
       status: "Present",
       deviceId: deviceId || "WEB",
-      scannedAt: now, // IST timestamp
+      scannedAt: now,
     });
 
     return res.json({
@@ -125,20 +105,11 @@ export async function markAttendance(req, res) {
       data: record,
     });
 
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.json({
-        success: true,
-        message: "Attendance already marked",
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 }
+
 
 /* 📌 Monthly Attendance */
 export async function getMonthlyAttendance(req, res) {
