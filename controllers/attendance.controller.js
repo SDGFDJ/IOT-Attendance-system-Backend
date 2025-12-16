@@ -1,18 +1,24 @@
 import AttendanceModel from "../models/attendance.model.js";
 import UserModel from "../models/user.model.js";
 
-/* ================= TIME HELPERS (IST – SAFE) ================= */
+/* ============================================================
+   🕒 TIME HELPERS (ABSOLUTE SAFE – NO localeString ❌)
+   Rule: Date internally UTC, calculation IST offset se
+============================================================ */
+const IST_OFFSET_MS = 330 * 60 * 1000; // +5:30
+
 function getISTNow() {
-  return new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-  );
+  const nowUTC = new Date();
+  return new Date(nowUTC.getTime() + IST_OFFSET_MS);
 }
 
 function getISTDayRange() {
-  const start = getISTNow();
+  const istNow = getISTNow();
+
+  const start = new Date(istNow);
   start.setHours(0, 0, 0, 0);
 
-  const end = new Date(start);
+  const end = new Date(istNow);
   end.setHours(23, 59, 59, 999);
 
   return { start, end };
@@ -40,7 +46,7 @@ const DAY_SUBJECTS = {
 };
 
 /* ============================================================
-   🟢 MARK ATTENDANCE (WEB + ESP32 SAFE)
+   🟢 MARK ATTENDANCE (WEB + ESP32)
 ============================================================ */
 export async function markAttendance(req, res) {
   try {
@@ -61,6 +67,7 @@ export async function markAttendance(req, res) {
       });
     }
 
+    /* 🕒 IST time */
     const now = getISTNow();
     const minutesNow = now.getHours() * 60 + now.getMinutes();
 
@@ -72,7 +79,7 @@ export async function markAttendance(req, res) {
       });
     }
 
-    /* 🎯 Find lecture */
+    /* 🎯 Lecture slot */
     const lectureSlot = LECTURE_SLOTS.find((slot) => {
       const [sh, sm] = slot.start.split(":").map(Number);
       const [eh, em] = slot.end.split(":").map(Number);
@@ -86,7 +93,8 @@ export async function markAttendance(req, res) {
       });
     }
 
-    const dayName = now.toLocaleDateString("en-US", {
+    /* 📅 Day name (IST safe) */
+    const dayName = now.toLocaleDateString("en-IN", {
       weekday: "long",
       timeZone: "Asia/Kolkata",
     });
@@ -99,10 +107,10 @@ export async function markAttendance(req, res) {
       });
     }
 
-    /* 📅 SAFE DATE RANGE (IMPORTANT FIX) */
+    /* 📅 IST DAY RANGE */
     const { start, end } = getISTDayRange();
 
-    /* 🔒 DUPLICATE PROTECTION (RANGE BASED – FIXED) */
+    /* 🔒 Duplicate protection */
     const already = await AttendanceModel.findOne({
       studentId,
       lectureNo: lectureSlot.no,
@@ -117,17 +125,17 @@ export async function markAttendance(req, res) {
       });
     }
 
-    /* ✅ CREATE RECORD */
+    /* ✅ Save attendance */
     const record = await AttendanceModel.create({
       studentId,
-      date: start, // 👈 only day start saved
+      date: start,        // IST day start (stored in UTC safely)
       lectureNo: lectureSlot.no,
       subject,
       startTime: lectureSlot.start,
       endTime: lectureSlot.end,
       status: "Present",
       deviceId: deviceId || "WEB",
-      scannedAt: now,
+      scannedAt: now,     // exact IST scan time
     });
 
     return res.json({
@@ -137,7 +145,6 @@ export async function markAttendance(req, res) {
     });
 
   } catch (err) {
-    // 🔥 Duplicate key safety
     if (err.code === 11000) {
       return res.json({
         success: true,
@@ -146,7 +153,6 @@ export async function markAttendance(req, res) {
     }
 
     console.error("Attendance Error:", err);
-
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -162,8 +168,8 @@ export async function getMonthlyAttendance(req, res) {
     const { id } = req.params;
     const { month, year } = req.query;
 
-    const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month, 0, 23, 59, 59);
+    const start = new Date(Date.UTC(year, month - 1, 1));
+    const end = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
     const records = await AttendanceModel.aggregate([
       { $match: { studentId: id, date: { $gte: start, $lte: end } } },
@@ -177,10 +183,7 @@ export async function getMonthlyAttendance(req, res) {
 
     res.json({ success: true, data: records });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 }
 
@@ -192,22 +195,16 @@ export async function getDayAttendance(req, res) {
     const { id } = req.params;
     const { day, month, year } = req.query;
 
-    const dateStart = new Date(year, month - 1, day, 0, 0, 0);
-    const dateEnd = new Date(year, month - 1, day, 23, 59, 59);
+    const dateStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+    const dateEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
 
     const records = await AttendanceModel.find({
       studentId: id,
       date: { $gte: dateStart, $lte: dateEnd },
     }).sort({ lectureNo: 1 });
 
-    res.json({
-      success: true,
-      data: records,
-    });
+    res.json({ success: true, data: records });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 }
