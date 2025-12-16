@@ -4,15 +4,20 @@ import UserModel from "../models/user.model.js";
 /* ============================================================
    🕒 TIME HELPERS (FINAL – NO OFFSET ❌)
 ============================================================ */
-function getNow() {
-  // Server already IST
-  return new Date();
+/* ============================================================
+   🕒 TIME HELPERS (LOCAL + VERCEL SAFE)
+============================================================ */
+function getISTNow() {
+  return new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
 }
 
-function getDateString() {
-  const d = new Date();
+function getISTDateString() {
+  const d = getISTNow();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
 
 /* ============================================================
    ⏱️ LECTURE SLOTS (ORDER MATTERS ❗)
@@ -70,8 +75,9 @@ export async function markAttendance(req, res) {
       return res.status(404).json({ success: false, message: "Student not found" });
     }
 
-    const now = getNow();
-    const today = getDateString();
+  const now = getISTNow();
+const today = getISTDateString();
+
 
     // 🎯 Detect lecture (late allowed)
     const lecture = detectLecture(now);
