@@ -4,7 +4,7 @@ import UserModel from "../models/user.model.js";
 /* ⏰ Lecture slots */
 const LECTURE_SLOTS = [
   { no: 1, start: "12:00", end: "10:40" },
-  { no: 2, start: "10:40", end: "13:20" },
+  { no: 2, start: "11:25", end: "12:20" },
   { no: 3, start: "13:20", end: "14:00" },
   { no: 4, start: "14:00", end: "14:40" },
   { no: 5, start: "15:00", end: "15:40" },
