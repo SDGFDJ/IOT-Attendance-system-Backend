@@ -1,7 +1,5 @@
 export function verifyESP32(req, res, next) {
-  const apiKey =
-    req.headers["x-api-key"] ||
-    req.headers["X-API-KEY"];
+  const apiKey = req.headers["x-api-key"]; // ✅ ONLY lowercase
 
   if (!apiKey) {
     return res.status(401).json({
