@@ -1,16 +1,21 @@
 import AttendanceModel from "../models/attendance.model.js";
 import UserModel from "../models/user.model.js";
 
-/* ================= TIME HELPERS (IST) ================= */
+/* ================= TIME HELPERS (IST – SAFE) ================= */
 function getISTNow() {
   return new Date(
     new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
   );
 }
-function getISTDateOnly() {
-  const d = getISTNow();
-  d.setHours(0, 0, 0, 0);
-  return d;
+
+function getISTDayRange() {
+  const start = getISTNow();
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setHours(23, 59, 59, 999);
+
+  return { start, end };
 }
 
 /* ================= LECTURE SLOTS ================= */
@@ -34,35 +39,51 @@ const DAY_SUBJECTS = {
   Saturday:  ["English", "Marathi/Hindi", "Maths/Geo", "Chemistry", "Physics", "E.V.S.", "ENG(T)"],
 };
 
+/* ============================================================
+   🟢 MARK ATTENDANCE (WEB + ESP32 SAFE)
+============================================================ */
 export async function markAttendance(req, res) {
   try {
     const { studentId, deviceId } = req.body;
+
     if (!studentId) {
-      return res.status(400).json({ success: false, message: "Student ID missing" });
+      return res.status(400).json({
+        success: false,
+        message: "Student ID missing",
+      });
     }
 
     const student = await UserModel.findOne({ studentId });
     if (!student) {
-      return res.status(404).json({ success: false, message: "Student not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
     }
 
     const now = getISTNow();
     const minutesNow = now.getHours() * 60 + now.getMinutes();
 
-    // ⛔ Recess
-    if (minutesNow >= (14 * 60 + 40) && minutesNow < (15 * 60)) {
-      return res.json({ success: false, message: "Recess time – attendance not allowed" });
+    /* ⛔ Recess */
+    if (minutesNow >= 14 * 60 + 40 && minutesNow < 15 * 60) {
+      return res.json({
+        success: false,
+        message: "Recess time – attendance not allowed",
+      });
     }
 
-    // 🎯 Find lecture slot
-    const lectureSlot = LECTURE_SLOTS.find(s => {
-      const [sh, sm] = s.start.split(":").map(Number);
-      const [eh, em] = s.end.split(":").map(Number);
-      return minutesNow >= (sh * 60 + sm) && minutesNow < (eh * 60 + em);
+    /* 🎯 Find lecture */
+    const lectureSlot = LECTURE_SLOTS.find((slot) => {
+      const [sh, sm] = slot.start.split(":").map(Number);
+      const [eh, em] = slot.end.split(":").map(Number);
+      return minutesNow >= sh * 60 + sm && minutesNow < eh * 60 + em;
     });
 
     if (!lectureSlot) {
-      return res.json({ success: false, message: "Not in lecture time" });
+      return res.json({
+        success: false,
+        message: "Not in lecture time",
+      });
     }
 
     const dayName = now.toLocaleDateString("en-US", {
@@ -72,24 +93,34 @@ export async function markAttendance(req, res) {
 
     const subject = DAY_SUBJECTS[dayName]?.[lectureSlot.no - 1];
     if (!subject) {
-      return res.json({ success: false, message: "No lecture scheduled now" });
+      return res.json({
+        success: false,
+        message: "No lecture scheduled now",
+      });
     }
 
-    const date = getISTDateOnly();
+    /* 📅 SAFE DATE RANGE (IMPORTANT FIX) */
+    const { start, end } = getISTDayRange();
 
-    // 🔒 Duplicate protection
+    /* 🔒 DUPLICATE PROTECTION (RANGE BASED – FIXED) */
     const already = await AttendanceModel.findOne({
       studentId,
-      date,
       lectureNo: lectureSlot.no,
+      date: { $gte: start, $lte: end },
     });
+
     if (already) {
-      return res.json({ success: true, message: "Attendance already marked", data: already });
+      return res.json({
+        success: true,
+        message: "Attendance already marked",
+        data: already,
+      });
     }
 
+    /* ✅ CREATE RECORD */
     const record = await AttendanceModel.create({
       studentId,
-      date,
+      date: start, // 👈 only day start saved
       lectureNo: lectureSlot.no,
       subject,
       startTime: lectureSlot.start,
@@ -106,12 +137,26 @@ export async function markAttendance(req, res) {
     });
 
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    // 🔥 Duplicate key safety
+    if (err.code === 11000) {
+      return res.json({
+        success: true,
+        message: "Attendance already marked",
+      });
+    }
+
+    console.error("Attendance Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 }
 
-
-/* 📌 Monthly Attendance */
+/* ============================================================
+   📌 MONTHLY ATTENDANCE
+============================================================ */
 export async function getMonthlyAttendance(req, res) {
   try {
     const { id } = req.params;
@@ -121,22 +166,27 @@ export async function getMonthlyAttendance(req, res) {
     const end = new Date(year, month, 0, 23, 59, 59);
 
     const records = await AttendanceModel.aggregate([
-      { $match: { studentId: id, date: { $gte: start, $lte: end } }},
+      { $match: { studentId: id, date: { $gte: start, $lte: end } } },
       {
         $group: {
-          _id: { day: { $dayOfMonth: "$date" }},
+          _id: { day: { $dayOfMonth: "$date" } },
           lectures: { $sum: 1 },
-        }
-      }
+        },
+      },
     ]);
 
     res.json({ success: true, data: records });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 }
 
-/* 📌 Day-wise Attendance */
+/* ============================================================
+   📌 DAY-WISE ATTENDANCE
+============================================================ */
 export async function getDayAttendance(req, res) {
   try {
     const { id } = req.params;
@@ -150,8 +200,14 @@ export async function getDayAttendance(req, res) {
       date: { $gte: dateStart, $lte: dateEnd },
     }).sort({ lectureNo: 1 });
 
-    res.json({ success: true, data: records });
+    res.json({
+      success: true,
+      data: records,
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 }
