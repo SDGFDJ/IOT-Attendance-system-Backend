@@ -29,7 +29,7 @@ const LECTURE_SLOTS = [
   { no: 4, start: "14:00", end: "14:40" },
   { no: 5, start: "14:40", end: "15:20" },
   { no: 6, start: "15:20", end: "16:00" },
-  { no: 7, start: "16:00", end: "16:40" }, // short last lecture
+  { no: 7, start: "19:48", end: "19:50" }, // short last lecture
 ];
 
 /* ============================================================
