@@ -23,13 +23,13 @@ function getISTDateString() {
    ⏱️ LECTURE SLOTS (ORDER MATTERS ❗)
 ============================================================ */
 const LECTURE_SLOTS = [
-  { no: 1, start: "9:40", end: "10:20" },
+  { no: 1, start: "09:40", end: "10:20" },
   { no: 2, start: "10:20", end: "11:00" },
-  { no: 3, start: "13:20", end: "14:00" },
-  { no: 4, start: "14:00", end: "14:40" },
-  { no: 5, start: "14:40", end: "15:20" },
-  { no: 6, start: "15:20", end: "16:00" },
-  { no: 7, start: "16:40", end: "17:20" }, // short last lecture
+  { no: 3, start: "11:00", end: "11:40" },
+  { no: 4, start: "11:40", end: "12:20" },
+  { no: 5, start: "12:20", end: "13:00" },
+  { no: 6, start: "13:00", end: "13:40" },
+  { no: 7, start: "13:40", end: "14:20" },
 ];
 
 /* ============================================================
