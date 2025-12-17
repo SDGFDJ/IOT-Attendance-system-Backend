@@ -27,7 +27,7 @@ const LECTURE_SLOTS = [
   { no: 2, start: "10:20", end: "11:00" },
   { no: 3, start: "11:00", end: "11:40" },
   { no: 4, start: "11:40", end: "12:20" },
-  { no: 5, start: "12:20", end: "13:00" },
+  { no: 5, start: "12:00", end: "12:40" },
   { no: 6, start: "13:00", end: "13:40" },
   { no: 7, start: "13:40", end: "14:20" },
 ];
